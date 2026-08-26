@@ -1,0 +1,32 @@
+# Environment variables
+.env
+*.env
+
+# Python Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# InsightFace Models & Cache
+models/
+.insightface/
+*.onnx
+*.pkl
+
+# Testing & Coverage
+.coverage
+htmlcov/
+.pytest_cache/
+
+# OS & Editors
+.DS_Store
+.vscode/
+.idea/
+*.log
