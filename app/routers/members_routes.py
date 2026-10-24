@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Request
 
+from app.middleware.auth_middleware import require_auth, require_super_admin
 from app.schemas.members_schema import MembersResponse, UpdateMemberRequest, UpdateMemberResponse
 
 router = APIRouter(prefix="/members", tags=["members"])
@@ -16,7 +17,8 @@ def _services(request: Request):
 @router.get("", response_model=MembersResponse)
 @router.get("/", response_model=MembersResponse)
 def get_members(request: Request):
-    """Retrieve list of all enrolled user members."""
+    """Retrieve list of all enrolled user members. Restricted to authenticated users."""
+    require_auth(request)
     data = _services(request).members_service.get_members()
     return {
         "success": True,
@@ -30,16 +32,7 @@ def get_members(request: Request):
 def update_member(request: Request, user_id: str, body: UpdateMemberRequest):
     """Update member details (name, email, role). Restricted to SUPER_ADMIN only."""
     services = _services(request)
-
-    # Extract access token from cookies or Authorization header
-    access_token = request.cookies.get("access_token")
-    if not access_token:
-        auth_header = request.headers.get("Authorization") or request.headers.get("authorization")
-        if auth_header and auth_header.startswith("Bearer "):
-            access_token = auth_header.split(" ", 1)[1]
-
-    # Enforcement: Require SUPER_ADMIN role
-    admin_payload = services.tokens.require_super_admin(access_token)
+    admin_payload = require_super_admin(request)
 
     updated = services.members_service.update_member(
         user_id=user_id,

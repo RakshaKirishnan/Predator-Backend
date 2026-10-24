@@ -7,6 +7,7 @@ from typing import Optional
 from fastapi import APIRouter, Request
 from pydantic import BaseModel
 
+from app.middleware.auth_middleware import require_admin, require_auth
 from app.services.repository.app_settings_repository import render_markdown_to_html
 
 logger = logging.getLogger(__name__)
@@ -30,9 +31,9 @@ class EmailPreviewRequest(BaseModel):
 
 @router.get("/email-templates")
 def list_email_templates(request: Request):
-    """Retrieve all email templates from app_settings collection array."""
-    services = _services(request)
-    templates_data = services.app_settings.list_email_templates()
+    """Retrieve all email templates from app_settings collection array. Restricted to Admin/Super Admin."""
+    require_admin(request)
+    templates_data = _services(request).app_settings.list_email_templates()
     return {
         "success": True,
         "message": "Email templates list retrieved successfully",
@@ -42,21 +43,9 @@ def list_email_templates(request: Request):
 
 @router.put("/email-templates/{template_id}")
 def update_email_template(request: Request, template_id: str, body: UpdateTemplateItemRequest):
-    """Update and persist specific email template in app_settings array."""
+    """Update and persist specific email template in app_settings array. Restricted to Admin/Super Admin."""
+    require_admin(request)
     services = _services(request)
-
-    # Optional token verification — verify admin if token present
-    access_token = request.cookies.get("access_token")
-    if not access_token:
-        auth_header = request.headers.get("Authorization") or request.headers.get("authorization")
-        if auth_header and auth_header.startswith("Bearer "):
-            access_token = auth_header.split(" ", 1)[1]
-
-    if access_token:
-        try:
-            services.tokens.require_admin(access_token)
-        except Exception as exc:
-            logger.warning("Template update token check warning: %s", exc)
 
     saved = services.app_settings.save_email_template(
         template_key=template_id,
@@ -73,22 +62,9 @@ def update_email_template(request: Request, template_id: str, body: UpdateTempla
 
 @router.post("/email-templates/reset")
 def reset_email_templates(request: Request):
-    """Reset email templates array to system defaults."""
-    services = _services(request)
-
-    access_token = request.cookies.get("access_token")
-    if not access_token:
-        auth_header = request.headers.get("Authorization") or request.headers.get("authorization")
-        if auth_header and auth_header.startswith("Bearer "):
-            access_token = auth_header.split(" ", 1)[1]
-
-    if access_token:
-        try:
-            services.tokens.require_admin(access_token)
-        except Exception as exc:
-            logger.warning("Template reset token check warning: %s", exc)
-
-    reset_data = services.app_settings.reset_email_templates()
+    """Reset email templates array to system defaults. Restricted to Admin/Super Admin."""
+    require_admin(request)
+    reset_data = _services(request).app_settings.reset_email_templates()
     return {
         "success": True,
         "message": "Email templates reset to defaults",
@@ -97,8 +73,10 @@ def reset_email_templates(request: Request):
 
 
 @router.post("/email-templates/preview")
-def preview_email_template(body: EmailPreviewRequest):
-    """Render markdown email template with sample context data for live preview."""
+def preview_email_template(request: Request, body: EmailPreviewRequest):
+    """Render markdown email template with sample context data for live preview. Restricted to authenticated users."""
+    require_auth(request)
+
     sample_context = {
         "name": "Raksha",
         "email": "raksha@example.com",

@@ -52,19 +52,17 @@ def face_login(request: Request, body: FaceLoginRequest, response: Response):
     )
 
 
+from app.middleware.auth_middleware import require_admin, require_auth, get_current_user as auth_user
+
+
 @router.post("/invite")
 def invite(request: Request, body: InviteRequest):
     """Admin sends SMTP invite with secure token."""
     services = _services(request)
-    access_token = request.cookies.get("access_token")
-    if not access_token:
-        auth_header = request.headers.get("Authorization") or request.headers.get("authorization")
-        if auth_header and auth_header.startswith("Bearer "):
-            access_token = auth_header.split(" ", 1)[1]
 
     # Bootstrap: if no users exist yet, allow invite without admin cookie.
     if services.users.count() > 0:
-        admin = services.tokens.require_admin(access_token)
+        admin = require_admin(request)
         invited_by = admin.get("sub")
         inviter_role = str(admin.get("role") or "USER").upper()
     else:
@@ -98,29 +96,22 @@ def accept_invite(request: Request, body: AcceptInviteRequest, response: Respons
 @router.post("/logout")
 def logout(request: Request, response: Response):
     """Clear JWT cookies + log logout transaction."""
-    access_token = request.cookies.get("access_token")
-    ip_address = request.state.ip_address
-    user_agent = request.state.user_agent
+    ip_address = getattr(request.state, "ip_address", "127.0.0.1")
+    user_agent = getattr(request.state, "user_agent", "")
 
-    email = "unknown@example.com"
+    email = getattr(request.state, "email", None) or "unknown@example.com"
     username = "Unknown User"
 
-    if access_token:
-        try:
-            services = _services(request)
-            payload = services.tokens.decode_access_token(access_token)
-            email = payload.get("sub") or email
-            user = services.users.find_by_email(email)
-            if user:
-                username = user.get("name") or email
-        except Exception:
-            pass
+    services = _services(request)
+    if email and email != "unknown@example.com":
+        user = services.users.find_by_email(email)
+        if user:
+            username = user.get("name") or email
 
-    response.delete_cookie("access_token")
-    response.delete_cookie("refresh_token")
+    services.tokens.clear_auth_cookies(response)
 
     try:
-        _services(request).usage_logs.create_log(
+        services.usage_logs.create_log(
             username=username,
             email=email,
             action="LOGOUT",
@@ -136,20 +127,12 @@ def logout(request: Request, response: Response):
 @router.get("/me")
 def get_current_user(request: Request):
     """Validate current access_token cookie or Bearer token and return user profile details."""
-    access_token = request.cookies.get("access_token")
-    if not access_token:
-        auth_header = request.headers.get("Authorization") or request.headers.get("authorization")
-        if auth_header and auth_header.startswith("Bearer "):
-            access_token = auth_header.split(" ", 1)[1]
-    if not access_token:
-        raise UnauthorizedError("No access token found")
-
-    services = _services(request)
-    payload = services.tokens.decode_access_token(access_token)
-    email = payload.get("sub")
+    user_payload = require_auth(request)
+    email = user_payload.get("sub")
     if not email:
         raise UnauthorizedError("Invalid token payload")
 
+    services = _services(request)
     user = services.users.find_by_email(email)
     if not user:
         raise UnauthorizedError("User record not found")
@@ -164,6 +147,7 @@ def get_current_user(request: Request):
             "role": user.get("role", "USER"),
         },
     }
+
 
 
 @router.get("/dashboard-stats")

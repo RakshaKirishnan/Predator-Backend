@@ -30,3 +30,7 @@ htmlcov/
 .vscode/
 .idea/
 *.log
+
+
+# tests
+/tests

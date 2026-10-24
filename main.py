@@ -71,9 +71,11 @@ app = FastAPI(
 )
 
 from app.middleware.client_metadata import ClientMetadataMiddleware
+from app.middleware.auth_middleware import AuthMiddleware
 
 register_exception_handlers(app)
 
+app.add_middleware(AuthMiddleware)
 app.add_middleware(ClientMetadataMiddleware)
 
 app.add_middleware(

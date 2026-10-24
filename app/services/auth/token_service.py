@@ -96,6 +96,11 @@ class TokenService:
             raise UnauthorizedError("Invalid access token type")
         return payload
 
+    def require_authenticated(self, token: Optional[str]) -> dict[str, Any]:
+        if not token:
+            raise UnauthorizedError("Authentication required")
+        return self.decode_access_token(token)
+
     def require_admin(self, token: Optional[str]) -> dict[str, Any]:
         if not token:
             raise UnauthorizedError("Authentication required")
@@ -117,4 +122,18 @@ class TokenService:
 
             raise ForbiddenError("Only SUPER_ADMIN can update member details and roles")
         return payload
+
+    def clear_auth_cookies(self, response: Response) -> None:
+        common = {
+            "path": "/",
+            "httponly": True,
+            "samesite": self.config.cookie_samesite,
+            "secure": self.config.cookie_secure,
+        }
+        if self.config.cookie_domain:
+            common["domain"] = self.config.cookie_domain
+
+        response.delete_cookie(key="access_token", **common)
+        response.delete_cookie(key="refresh_token", **common)
+
 

@@ -108,7 +108,7 @@ class InviteService:
                 "invite_link": link,
                 "email_sent": email_sent,
                 "email_error": email_error,
-                "expires_at": invite["expires_at"].isoformat(),
+                "expires_at": invite["expires_at"],
             },
         }
 
