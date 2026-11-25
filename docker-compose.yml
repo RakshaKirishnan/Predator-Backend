@@ -11,8 +11,8 @@ services:
       MONGO_INITDB_DATABASE: predator
     volumes:
       - mongo_data:/data/db
-    # No host port binding – backend reaches mongo via the internal Docker network.
-    # To debug mongo from host: "127.0.0.1:27018:27017" (use 27018 to avoid conflict)
+    ports:
+      - "27017:27017"
     networks:
       - predator-net
     healthcheck:
